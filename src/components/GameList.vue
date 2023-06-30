@@ -14,7 +14,7 @@
             border
             tooltip-effect="dark"
             :height="tableHeight" 
-            empty-text="游戏数据加载中..."
+            empty-text="游戏没找到？喊客服帮你"
             style="width: 100%"
             @row-click="clickRow"
             @select="select"
@@ -72,7 +72,7 @@
                 border
                 tooltip-effect="dark"
                 :height="tableHeight" 
-                empty-text="游戏数据加载中..."
+                empty-text="未选择游戏"
                 style="width: 100%">
                 <el-table-column
                     prop="name"
@@ -97,6 +97,7 @@
             <el-button type="primary" 
             style="width: 100%; height: 57px; font-size: 16px; font-weight: bold;"
             :round="false"
+            @click="submit()"
           >提交</el-button>
           </div>
       </el-drawer>
@@ -123,6 +124,7 @@
           searchTaskId: null,
           drawer: false,
           diskSize: "建议选购：256G",
+          dataFilePath: ""
         }
       },
 
@@ -171,10 +173,27 @@
 
         });
 
-        this.loadGameData()
+        this.$confirm('', '请先选择游戏平台', {
+          confirmButtonText: 'PC电脑',
+          cancelButtonText: 'PS4｜PS5',
+          // type: 'success',
+          center: true,
+          closeOnClickModal: false,
+          closeOnPressEscape: false
+        }).then(() => {
+          this.dataFilePath = "pc-data.txt"
+          this.loadGameData()
+        }).catch(() => {
+          this.dataFilePath = "/ps4|5.txt"
+          this.loadGameData()
+        });
+
       },
   
       methods: {
+        async handleSelect(key, keyPath) {
+          console.log(key, keyPath);
+        },
         async filterGame(newVal) {
             this.searchTaskId = null
             this.tableData = this.sourceData.filter((value) => value.name.includes(newVal))
@@ -224,21 +243,73 @@
                 this.$refs.multipleTable.toggleRowSelection(row, false);
              }             
         },
-        async sendEmail() {
+        async submit() {
+
+          if (this.selectedCount == 0) {
+            this.$message({
+              message: '请选择游戏',
+              center: true,
+              type: 'warning'
+            });
+            return
+          }
+
+          this.$confirm(`${this.diskSize}以上硬盘，确定提交?`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            center: true
+          }).then(() => {
+
+            const loading = this.$loading({
+              lock: true,
+              text: 'Loading',
+              spinner: 'el-icon-loading',
+              background: 'rgba(0, 0, 0, 0.7)'
+            });
+            var data = this.selectedData.map((value) => `${value.name}\t${value.size}`).join("\n")
+            var code_fill_str = ["000000", "00000", "0000", "000", "00", "0", ""];
+            var code = '' + parseInt(Math.random()*1000000);
+            code = code_fill_str[code.length] + code; 
+            // console.log(`订单号：${code}\n数量：${this.selectedCount}\n总大小：${this.selectedSize}\n${this.diskSize}\n${data}`);
+            this.sendEmail(
+              code, 
+              `${this.dataFilePath}\n订单号：${code}\n数量：${this.selectedCount}\n总大小：${this.selectedSize}\n${this.diskSize}\n${data}`, 
+              loading);
+          }).catch(() => {
+          });
+        },
+        async sendEmail(code, data, loading) {
             emailjs.send("service_8mk21ke","template_qiluuhl",{
-                to_name: "yuqustudio@163.com",
-                from_name: "yuqustudio@163.com",
-                message: "testtesttesttesttesttest",
+                // to_name: "yuqustudio@163.com",
+                // from_name: "yuqustudio@163.com",
+                code: code,
+                message: data,
                 }, 'kV3FqN4eMcfBzrTfV')
             .then((result) => {
-                console.log('SUCCESS!', result.text);
-            }, (error) => {
-                console.log('FAILED...', error.text);
-            });
+              loading.close()
+              
+              this.$prompt('请复制以下订单号，在购买硬盘时填写在备注中，或发送给客服', '提交成功', {
+                confirmButtonText: '确定',
+                inputValue: code,
+                center: true,
+                closeOnClickModal: false,
+                closeOnPressEscape: false
+              }).then(({ value }) => {
+                location.reload();
+              }).catch(() => {   
+                location.reload(); 
+              });
 
+            }, (error) => {
+              loading.close()
+              this.$notify.error({
+                title: '错误',
+                message: '提交失败，请将加购的游戏截图发给客服'
+              });
+            });
         },
         async loadGameData() {
-            this.axios.get("/data.txt").then(res => {
+            this.axios.get(this.dataFilePath).then(res => {
                   //请求成功，触发then中的函数
                   // console.log(res)  
                   const data = res.data
@@ -305,8 +376,16 @@
     }
   </script>
 
-  <style scoped>
+  <style type="text/css" scoped>
 ::v-deep .el-table__header-wrapper .el-checkbox {
   visibility: hidden;
+}
+::v-deep .el-message-box {
+  width: 60%;
+}
+@media screen and (max-width: 720px) {
+  .el-message-box {
+    width: 60% !important;
+  }
 }
 </style>
