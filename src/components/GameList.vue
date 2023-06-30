@@ -148,6 +148,9 @@
         }
       },
 
+      created () {
+        document.title = '好游荐电玩'
+      },
       mounted() {
         let that = this;
         this.$nextTick(() => {
